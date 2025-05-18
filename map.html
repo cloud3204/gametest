@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<title>地圖視窗</title>
+<style>
+  body, html {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  display: flex;
+  justify-content: center; /* 水平置中 */
+  align-items: center;     /* 垂直置中 */
+  background-color: #000;  /* 可選：給背景色讓地圖更顯眼 */
+  overflow: hidden;
+  }
+  #mapContainer {
+    position: relative;
+    width: 1191px;
+    height: 804px;
+    max-width: 100%;
+    max-height: 100%;
+    background-image: url('base_map.png');
+    background-size: cover;
+  }
+  .marker-img {
+    position: absolute;
+    width: 90px;
+    height: 90px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+  }
+
+</style>
+</head>
+<body>
+  
+<div id="roundIndicator"
+     style="
+       position: absolute;
+       top: 20px;
+       left: 50%;
+       transform: translateX(-50%);
+       z-index: 10;
+       background: rgba(0, 0, 0, 0.7);
+       color: white;
+       padding: 12px 24px;
+       border-radius: 12px;
+       font-size: 32px;
+       font-weight: bold;
+       box-shadow: 0 0 10px rgba(0,0,0,0.5);
+     ">
+  回合：0
+</div>
+<div id="timerDisplay"
+     style="
+       position: absolute;
+       top: 20px;
+       right: 20px;
+       z-index: 10;
+       background: rgba(0,0,0,0.7);
+       color: white;
+       padding: 16px 28px;
+       border-radius: 14px;
+       font-size: 50px;
+       font-weight: bold;
+       
+     ">
+  00:00
+</div>
+
+<div id="mapContainer"><svg id="pathLayer" width="1191" height="804" style="position:absolute;top:0;left:0;z-index:1;"></svg></div>
+
+<script>
+  const mapContainer = document.getElementById("mapContainer");
+  let thiefPositions = { 1: [], 2: [] };
+
+  window.addEventListener("message", (event) => {
+    const data = event.data;
+    
+    if (data.type === "clearMarkers") {
+      if (data.type === "updateRound") {
+        document.getElementById("roundIndicator").textContent = `回合：${data.round}`;
+        }  
+      clearMarkers();
+    }
+
+    if (data.type === "updateTimer") {
+  const timerDisplay = document.getElementById("timerDisplay");
+  if (timerDisplay) {
+    timerDisplay.textContent = data.time;
+  }
+}
+
+  if (data.type === "toggleThief") {
+  const thiefMarkers = document.querySelectorAll(".thief-marker");
+  thiefMarkers.forEach(el => {
+    el.style.display = data.show ? "block" : "none";
+  });
+}
+
+    if (data.type === "updateRound") {
+  console.log("收到回合更新：", data.round); // ← 看有沒有進來
+  document.getElementById("roundIndicator").textContent = `回合：${data.round}`;
+}
+
+    if (data.type === "addPlayer") {
+      addMarker(data.position, data.team, data.playerNum);
+    }
+
+    if (data.type === "addThief") {
+      addMarker(data.position, "小偷", data.thiefId);
+      thiefPositions[data.thiefId].push(data.position);
+    }
+
+    if (data.type === "investigate") {
+      investigate(data.player, data.thiefData);
+    }
+
+    if (data.type === "capture") {
+    capture(data.player, data.thiefData, data.bad1Data, data.bad2Data);
+    }
+  });
+
+  //標線 之後再用
+  function drawLine(from, to, color) {  
+  const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+  line.setAttribute("x1", from.x);
+  line.setAttribute("y1", from.y);
+  line.setAttribute("x2", to.x);
+  line.setAttribute("y2", to.y);
+  line.setAttribute("stroke", color);
+  line.setAttribute("stroke-width", 2);
+  pathLayer.appendChild(line);
+}
+
+  function addMarker(position, type, id) {
+    const marker = document.createElement("div");
+    if (type === "小偷") {
+    marker.classList.add("marker-img", "thief-marker");
+    marker.style.display = "none";// 預設隱藏小偷標記 可檢測用
+    } else {
+    marker.classList.add("marker-img", "player-marker");
+    }
+    
+    let imgPath = "";
+    if (type === "小偷") {
+      marker.classList.add("marker-img", "thief-marker");
+      imgPath = `point/thief.png`; // 圖片放在 point 資料夾
+    } else {
+      marker.classList.add("marker-img", "player-marker");
+      const teamMap = { 紅: "red", 藍: "blue", 黃: "yellow" };
+      const teamEng = teamMap[type];
+      imgPath = `point/${teamEng}_${id}.png`;
+    }
+    marker.style.backgroundImage = `url('${imgPath}')`;
+    marker.style.left = (position.x ) + "px";
+    marker.style.top = (position.y ) + "px";
+    mapContainer.appendChild(marker);
+  }
+
+  function clearMarkers() {
+  document.querySelectorAll(".player-marker").forEach(el => el.remove());
+  const pathLayer = document.getElementById("pathLayer");
+  while (pathLayer.firstChild) {
+    pathLayer.removeChild(pathLayer.firstChild);
+  }
+  }
+
+ //調查
+  function investigate(player, thiefData) {
+  const { team, playerNum, position } = player;
+  let found =false;
+
+  for (let thiefId in thiefData) {
+    thiefData[thiefId].forEach(thiefPos => {
+      if (position.x === thiefPos.x && position.y === thiefPos.y) {
+        found = true;
+      }
+    });
+  }
+
+  if (found) {
+    window.opener?.postMessage({
+    type: "logInvestigationResult",
+    player,
+    result: "找到小偷足跡"
+  }, "*");
+  } else {
+    window.opener?.postMessage({
+    type: "logInvestigationResult",
+    player,
+    result: "沒有發現足跡"
+  }, "*");
+  }
+}
+
+
+ //判斷腐警
+  function isBadCop(player, bad1Data, bad2Data) {
+  const match = (entry) => entry.team === player.team && entry.BADPlayer1Id === player.playerNum;
+  return (bad1Data && bad1Data.some(match)) || (bad2Data && bad2Data.some(match));
+}
+
+ //抓捕
+  function capture(player, thiefData, bad1Data, bad2Data) {
+  const { team, playerNum, position } = player;
+
+  const isBad = isBadCop(player, bad1Data, bad2Data);
+
+  for (let thiefId in thiefData) {
+    const path = thiefData[thiefId];
+    if (path.length === 0) continue;
+    const lastPos = path[path.length - 1];
+
+    if (position.x === lastPos.x && position.y === lastPos.y) {
+      if (isBad) {
+        alert(`抓捕失敗：隊伍 ${team} 編號 ${playerNum} 沒抓到 小偷 `);
+        window.opener?.postMessage({ 
+        type: "logCaptureResult", 
+        result: "抓捕失敗", 
+        player: player 
+        }, "*");
+      } else {
+        alert(`抓捕成功：隊伍 ${team} 編號 ${playerNum} 抓到 小偷 `);
+        window.opener?.postMessage({ 
+        type: "logCaptureResult", 
+        result: "抓捕成功", 
+        player: player 
+        }, "*");
+      }
+    } else {
+      alert(`抓捕失敗：隊伍 ${team} 編號 ${playerNum} 沒抓到 小偷 `);
+        window.opener?.postMessage({ 
+        type: "logCaptureResult", 
+        result: "抓捕失敗", 
+        player: player 
+        }, "*");
+    }
+    console.log("正在抓捕的玩家：", player);
+    console.log("腐敗警察資料：", bad1Data, bad2Data);
+  }
+}
+</script>
+</body>
+</html>
