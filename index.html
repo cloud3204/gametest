@@ -86,6 +86,7 @@
 
 <div class="title-bar">遊戲控制面板</div>
 <button onclick="clearPoliceLog()" style="margin-left: 10px;">清空紀錄 遊戲結束在按!</button>
+<button onclick="resetToken()">🔐 重新輸入 Token</button>
 <div class="section">
   
   <h3>腐敗警察設定</h3>
@@ -623,7 +624,6 @@ async function uploadLogToGitHub(logData) {
     }
     localStorage.setItem("github_token", token);
   }
- 
 
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
 
@@ -631,7 +631,7 @@ async function uploadLogToGitHub(logData) {
   let sha = null;
   try {
     const res = await fetch(apiUrl, {
-      headers: { Authorization: `token ${token}` }
+      headers: {  Authorization: `Bearer ${token}` }
     });
     if (res.ok) {
       const json = await res.json();
@@ -648,7 +648,7 @@ async function uploadLogToGitHub(logData) {
   const res = await fetch(apiUrl, {
     method: "PUT",
     headers: {
-      Authorization: `token ${token}`,
+      Authorization: `Bearer ${token}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -677,6 +677,11 @@ function clearPoliceLog() {
   if (logDiv) logDiv.textContent = "";
   uploadLogToGitHub({ police: [] });
   alert("✅ 警察紀錄已清空！");
+}
+
+function resetToken() {
+  localStorage.removeItem("github_token");
+  alert("已清除 Token，下次操作時會要求重新輸入！");
 }
 
 </script>
