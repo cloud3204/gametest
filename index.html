@@ -659,8 +659,10 @@ async function uploadLogToGitHub(logData) {
   });
 
   if (!res.ok) {
-    console.error("❌ 上傳失敗：", await res.text());
-  }
+  const errorText = await res.text();
+  console.error("❌ 上傳失敗：", errorText);
+  alert("❌ 上傳失敗，伺服器回應：" + errorText);
+}
 }
 
 //清除紀錄
