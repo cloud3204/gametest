@@ -85,8 +85,9 @@
 <body>
 
 <div class="title-bar">遊戲控制面板</div>
-
+<button onclick="clearPoliceLog()" style="margin-left: 10px;">清空紀錄 遊戲結束在按!</button>
 <div class="section">
+  
   <h3>腐敗警察設定</h3>
   腐敗警1：<select id="badteam1">
     <option value="紅">紅</option>
@@ -170,7 +171,7 @@
 </div>
 
 <div class="section">
-  <h3>操作紀錄</h3>
+  <h3>警察操作紀錄</h3>
   <div id="actionLog" class="log-box"></div>
 </div>
 
@@ -369,6 +370,7 @@
   let bad1Data=[];
   let bad2Data=[];
   let thiefData = { 1: [], 2: [] };
+  let policeLog = [];
 
   function openMapWindow() {
     mapWindow = window.open("map.html", "mapWindow", "width=1200,height=900");
@@ -393,9 +395,11 @@
   const logDiv = document.getElementById("actionLog");
   const time = new Date().toLocaleTimeString();
   const entry = document.createElement("div");
-   entry.textContent = `[${time}] 第 ${currentRound} 回合：${text}`;
+  entry.textContent = `[${time}] 第 ${currentRound} 回合：${text}`;
   logDiv.appendChild(entry);
   logDiv.scrollTop = logDiv.scrollHeight; //自動捲到底
+  policeLog.push(entry);// 記錄到全域變數
+  uploadLogToGitHub({ police: policeLog });//上傳到 GitHub
   }
   //紀錄偷
   function logThiefAction(text) {
@@ -604,6 +608,67 @@ window.addEventListener("message", (event) => {
     logAction(`${team}${playerNum} ${data.result}`);
   }
 });
+ 
+//上傳log
+async function uploadLogToGitHub(logData) {
+  const repo = "gametest";
+  const owner = "cloud3204";
+  const filename = "log.json";
+  const token = "你的 GitHub Token"; // 建議用 localStorage 輸入，不直接寫死
+
+  const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filename}`;
+
+  // 取得現有 SHA（如檔案已存在）
+  let sha = null;
+  try {
+    const res = await fetch(apiUrl, {
+      headers: { Authorization: `token ${token}` }
+    });
+    if (res.ok) {
+      const json = await res.json();
+      sha = json.sha;
+    }
+  } catch (e) {
+    console.warn("無法取得 log.json SHA，可能是首次建立。");
+  }
+
+  // 將 JSON 轉成 base64
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(logData, null, 2))));
+
+  // 寫入／更新檔案
+  const res = await fetch(apiUrl, {
+    method: "PUT",
+    headers: {
+      Authorization: `token ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      message: "Auto update police log",
+      content: content,
+      sha: sha
+    })
+  });
+
+  if (!res.ok) {
+    console.error("❌ 上傳失敗：", await res.text());
+  }
+}
+
+//清除紀錄
+function clearPoliceLog() {
+  const password = prompt("⚠️要刪除請輸入確定不要就空白");
+  const correctPassword = "確定";
+  if (password !== correctPassword) {
+    alert("紀錄未清空！");
+    return;
+  }
+  policeLog = [];
+  // 2. 清除畫面上的 log 區域
+  const logDiv = document.getElementById("actionLog");
+  if (logDiv) logDiv.textContent = "";
+  uploadLogToGitHub({ police: [] });
+  alert("✅ 警察紀錄已清空！");
+}
 
 </script>
 </body>
