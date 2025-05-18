@@ -399,7 +399,7 @@
   entry.textContent = `[${time}] 第 ${currentRound} 回合：${text}`;
   logDiv.appendChild(entry);
   logDiv.scrollTop = logDiv.scrollHeight; //自動捲到底
-  policeLog.push(entry);// 記錄到全域變數
+  policeLog.push(entry.textContent);// 記錄到全域變數
   uploadLogToGitHub({ police: policeLog });//上傳到 GitHub
   }
   //紀錄偷
